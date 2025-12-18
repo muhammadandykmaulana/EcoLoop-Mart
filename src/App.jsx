@@ -26,14 +26,21 @@ import {
   ChevronRight,
   Ban,
   HelpCircle,
-  ArrowDown
+  ArrowDown,
+  Calendar,
+  CreditCard
 } from 'lucide-react';
 
 // --- INITIAL DATA ---
 const INITIAL_USERS = [
-  { id: 'u1', username: 'budi', password: '123', name: 'Budi Santoso', role: 'user', balance: 150, joined: '2023-10-01', status: 'active', isNew: false },
-  { id: 'u2', username: 'siti', password: '123', name: 'Siti Aminah', role: 'user', balance: 0, joined: '2023-11-15', status: 'active', isNew: true },
-  { id: 'a1', username: 'admin', password: 'admin', name: 'Admin IndoApril', role: 'admin', balance: 0, joined: '2023-01-01', status: 'active', isNew: false },
+  { id: 'u1', username: 'budi', password: '123', name: 'Budi Santoso', role: 'user', balance: 150, joined: '01/10/2025', status: 'active', isNew: false },
+  { id: 'u2', username: 'siti', password: '123', name: 'Siti Aminah', role: 'user', balance: 0, joined: '15/11/2025', status: 'active', isNew: true },
+  { id: 'a1', username: 'admin', password: 'admin', name: 'Admin IndoApril', role: 'admin', balance: 0, joined: '01/10/2025', status: 'active', isNew: false },
+];
+
+const INITIAL_TRANSACTIONS = [
+  { id: 't1', userId: 'u1', type: 'earn', amount: 50, desc: 'Setor 2.5kg Kardus', date: '01/12/2023' },
+  { id: 't2', userId: 'u1', type: 'spend', amount: 100, desc: 'Tukar Minyak Goreng', date: '02/12/2023' },
 ];
 
 const WASTE_TYPES = [
@@ -46,8 +53,273 @@ const WASTE_TYPES = [
 const DEFAULT_PRODUCTS = [
   { id: 'p1', name: 'Minyak Goreng 1L', price: 100, stock: 20, category: 'Sembako', image: 'oil' },
   { id: 'p2', name: 'Beras Premium 3Kg', price: 250, stock: 15, category: 'Sembako', image: 'rice' },
+  { id: 'p3', name: 'Gula Pasir 1Kg', price: 80, stock: 30, category: 'Sembako', image: 'sugar' },
+  { id: 'p4', name: 'Telur Ayam 1/2 Kg', price: 120, stock: 10, category: 'Lauk', image: 'egg' },
+  { id: 'p5', name: 'Mie Instan (5 Pcs)', price: 40, stock: 100, category: 'Makanan', image: 'noodle' },
   { id: 'p6', name: 'Paket Sembako Lite (Beras, Minyak, Gula, Telur)', price: 500, stock: 5, category: 'Paket', image: 'package' },
 ];
+
+// --- SUB-COMPONENTS (Extracted for Stability) ---
+
+const AdminUserManagement = ({ users, setUsers, showNotification }) => {
+  const [editUser, setEditUser] = useState(null);
+  const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'user' });
+
+  const handleSaveUser = () => {
+    if (!userForm.name || !userForm.username || !userForm.password) return;
+    
+    if (editUser) {
+      setUsers(users.map(u => u.id === editUser.id ? { ...u, ...userForm } : u));
+      showNotification('Data akun berhasil diperbarui');
+    } else {
+      if (users.find(u => u.username === userForm.username)) {
+        return showNotification('Username sudah digunakan', 'error');
+      }
+      const newUser = { 
+        id: (userForm.role === 'admin' ? 'a' : 'u') + Date.now(), 
+        ...userForm, 
+        balance: 0, 
+        status: 'active', 
+        joined: new Date().toLocaleDateString('id-ID'), 
+        isNew: false 
+      };
+      setUsers([...users, newUser]);
+      showNotification('Akun baru berhasil ditambahkan');
+    }
+    setEditUser(null);
+    setUserForm({ name: '', username: '', password: '', role: 'user' });
+  };
+
+  const toggleStatus = (userId) => {
+    setUsers(users.map(u => u.id === userId ? { ...u, status: u.status === 'active' ? 'disabled' : 'active' } : u));
+    showNotification('Status akun berhasil diubah');
+  };
+
+  const startEdit = (user) => {
+    setEditUser(user);
+    setUserForm({ 
+      name: user.name, 
+      username: user.username, 
+      password: user.password, 
+      role: user.role 
+    });
+  };
+
+  return (
+    <div className="p-4 space-y-6 pb-24">
+      <div className="bg-white p-5 rounded-3xl shadow-sm border">
+        <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+          {editUser ? <Edit size={18}/> : <Plus size={18}/>} {editUser ? 'Edit Akun' : 'Tambah Akun'}
+        </h3>
+        <div className="space-y-3">
+          <div className="flex gap-2 p-1 bg-gray-50 rounded-xl mb-2">
+            <button onClick={() => setUserForm({...userForm, role: 'user'})} className={`flex-1 py-1.5 text-xs font-bold rounded-lg ${userForm.role === 'user' ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>Warga</button>
+            <button onClick={() => setUserForm({...userForm, role: 'admin'})} className={`flex-1 py-1.5 text-xs font-bold rounded-lg ${userForm.role === 'admin' ? 'bg-orange-500 text-white shadow' : 'text-gray-400'}`}>Admin</button>
+          </div>
+          <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Nama Lengkap" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+          <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Username" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} />
+          <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
+          <div className="flex gap-2 pt-2">
+            {editUser && <button onClick={() => { setEditUser(null); setUserForm({name:'', username:'', password:'', role:'user'}); }} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Batal</button>}
+            <button onClick={handleSaveUser} className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition">Simpan</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="font-bold text-gray-500 text-xs uppercase px-1">Daftar Akun</h3>
+        {users.map(u => (
+          <div key={u.id} className={`bg-white p-4 rounded-2xl shadow-sm border flex items-center justify-between ${u.status === 'disabled' ? 'bg-gray-50 grayscale opacity-60' : ''}`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${u.role === 'admin' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                {u.role === 'admin' ? <ShieldCheck size={20}/> : <User size={20}/>}
+              </div>
+              <div>
+                <p className="font-bold text-sm text-gray-800">{u.name} {u.status === 'disabled' && <span className="text-[9px] bg-red-100 text-red-600 px-1 rounded ml-1 font-black">DISABLED</span>}</p>
+                <p className="text-xs text-gray-400">@{u.username} • {u.balance} pts</p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={() => startEdit(u)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit size={16}/></button>
+              {u.role === 'user' && (
+                <button onClick={() => toggleStatus(u.id)} className={`p-2 rounded-lg ${u.status === 'disabled' ? 'text-green-600' : 'text-red-400'}`}>
+                  {u.status === 'disabled' ? <CheckCircle size={16}/> : <Ban size={16}/>}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AdminInventoryManagement = ({ products, setProducts, showNotification }) => {
+  const [editItem, setEditItem] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [invForm, setInvForm] = useState({ name: '', stock: '', price: '', image: 'oil' });
+
+  const handleSaveItem = () => {
+    if (!invForm.name || !invForm.stock || !invForm.price) return;
+    const newItem = {
+      id: editItem ? editItem.id : 'p' + Date.now(),
+      name: invForm.name,
+      stock: parseInt(invForm.stock),
+      price: parseInt(invForm.price),
+      category: invForm.image === 'package' ? 'Paket' : 'Sembako',
+      image: invForm.image
+    };
+
+    if (editItem) {
+      setProducts(products.map(p => p.id === newItem.id ? newItem : p));
+      showNotification('Barang berhasil diupdate');
+    } else {
+      setProducts([...products, newItem]);
+      showNotification('Barang baru ditambahkan');
+    }
+    setShowForm(false);
+    setEditItem(null);
+    setInvForm({ name: '', stock: '', price: '', image: 'oil' });
+  };
+
+  const handleDeleteItem = (id) => {
+    if(window.confirm('Hapus barang ini?')) {
+      setProducts(products.filter(p => p.id !== id));
+      showNotification('Barang dihapus');
+    }
+  };
+
+  return (
+    <div className="p-4 space-y-6 pb-24">
+      {showForm ? (
+        <div className="bg-white p-5 rounded-3xl shadow-lg border relative">
+           <button onClick={() => setShowForm(false)} className="absolute top-4 right-4 text-gray-400"><X size={20}/></button>
+           <h3 className="font-bold text-gray-800 mb-4">{editItem ? 'Edit Barang' : 'Tambah Barang'}</h3>
+           <div className="space-y-3">
+             <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Nama Barang" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} />
+             <div className="flex gap-2">
+               <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Stok" value={invForm.stock} onChange={e => setInvForm({...invForm, stock: e.target.value})} />
+               <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Harga (Poin)" value={invForm.price} onChange={e => setInvForm({...invForm, price: e.target.value})} />
+             </div>
+             <select className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" value={invForm.image} onChange={e => setInvForm({...invForm, image: e.target.value})}>
+               <option value="oil">Ikon Minyak</option>
+               <option value="rice">Ikon Beras</option>
+               <option value="sugar">Ikon Gula</option>
+               <option value="egg">Ikon Telur</option>
+               <option value="noodle">Ikon Mie</option>
+               <option value="package">Ikon Paket Sembako</option>
+             </select>
+             <button onClick={handleSaveItem} className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2"><Save size={18}/> Simpan</button>
+           </div>
+        </div>
+      ) : (
+        <button onClick={() => { setEditItem(null); setInvForm({name:'', stock:'', price:'', image:'oil'}); setShowForm(true); }} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border border-blue-200 flex items-center justify-center gap-2">
+          <Plus size={18}/> Tambah Stok Barang
+        </button>
+      )}
+
+      <div className="space-y-3">
+        {products.map(p => (
+          <div key={p.id} className="bg-white p-3 rounded-2xl shadow-sm border flex justify-between items-center">
+            <div>
+              <h4 className="font-bold text-gray-800 text-sm">{p.name}</h4>
+              <div className="text-xs text-gray-500 flex gap-2 mt-1">
+                 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">Stok: {p.stock}</span>
+                 <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded">{p.price} Poin</span>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <button onClick={() => { setEditItem(p); setInvForm(p); setShowForm(true); }} className="p-2 bg-gray-100 rounded-lg text-gray-600"><Edit size={16}/></button>
+              <button onClick={() => handleDeleteItem(p.id)} className="p-2 bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AdminDashboard = ({ users, products, updateUserBalance, setTransactions, transactions, showNotification }) => {
+  const [depositUser, setDepositUser] = useState('');
+  const [depositWeight, setDepositWeight] = useState('');
+  const [selectedWaste, setSelectedWaste] = useState(WASTE_TYPES[0]);
+
+  const handleDeposit = (e) => {
+    e.preventDefault();
+    if (!depositUser || !depositWeight) return;
+    const points = Math.floor(parseFloat(depositWeight) * selectedWaste.price);
+    
+    updateUserBalance(depositUser, points);
+    
+    const newTx = {
+      id: 't' + Date.now(),
+      userId: depositUser,
+      type: 'earn',
+      amount: points,
+      desc: `Setor ${depositWeight}${selectedWaste.unit} ${selectedWaste.name}`,
+      date: new Date().toLocaleDateString('id-ID')
+    };
+    setTransactions([newTx, ...transactions]);
+    
+    setDepositWeight('');
+    setDepositUser('');
+    showNotification(`Berhasil! User +${points} Poin.`);
+  };
+
+  return (
+    <div className="p-4 space-y-6 pb-24">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-blue-600 p-5 rounded-3xl text-white shadow-lg">
+          <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Total Warga</p>
+          <h3 className="text-3xl font-bold">{users.filter(u => u.role === 'user').length}</h3>
+        </div>
+        <div className="bg-orange-500 p-5 rounded-3xl text-white shadow-lg">
+          <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Barang Mart</p>
+          <h3 className="text-3xl font-bold">{products.length}</h3>
+        </div>
+      </div>
+
+      <div className="bg-white p-5 rounded-3xl border shadow-sm">
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-gray-800"><Recycle size={18} className="text-green-600"/> Input Setoran (Detail)</h3>
+        <form onSubmit={handleDeposit} className="space-y-4">
+          <div>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Pilih Warga</label>
+            <select className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500" value={depositUser} onChange={e => setDepositUser(e.target.value)}>
+              <option value="">-- Pilih Akun --</option>
+              {users.filter(u => u.role === 'user' && u.status === 'active').map(u => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Jenis Sampah</label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {WASTE_TYPES.map(w => (
+                <button type="button" key={w.id} onClick={() => setSelectedWaste(w)} className={`p-2 rounded-xl text-xs font-bold border transition ${selectedWaste.id === w.id ? 'bg-green-100 border-green-500 text-green-700' : 'bg-white border-gray-200 text-gray-600'}`}>
+                  {w.name}
+                  <span className="block text-[10px] opacity-70 mt-1">Rp {w.price}/{w.unit}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Berat / Jumlah ({selectedWaste.unit})</label>
+            <input type="number" step="0.1" className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-green-500" placeholder="0.0" value={depositWeight} onChange={e => setDepositWeight(e.target.value)}/>
+          </div>
+
+          <div className="bg-green-50 p-3 rounded-xl flex justify-between items-center border border-green-100">
+            <span className="text-xs font-bold text-green-800">Estimasi:</span>
+            <span className="text-xl font-black text-green-600">{depositWeight ? Math.floor(parseFloat(depositWeight) * selectedWaste.price) : 0} Poin</span>
+          </div>
+
+          <button type="submit" className="w-full bg-green-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition">Proses Setoran</button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN APP ---
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -60,7 +332,10 @@ export default function App() {
     const saved = localStorage.getItem('ecoLoopInventory');
     return saved ? JSON.parse(saved) : DEFAULT_PRODUCTS;
   });
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem('ecoLoopTransactions');
+    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+  });
   const [cart, setCart] = useState([]);
   const [notification, setNotification] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -69,7 +344,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('ecoLoopUsers', JSON.stringify(users));
     localStorage.setItem('ecoLoopInventory', JSON.stringify(products));
-  }, [users, products]);
+    localStorage.setItem('ecoLoopTransactions', JSON.stringify(transactions));
+  }, [users, products, transactions]);
+
+  // Sync currentUser if Admin updates their own profile
+  useEffect(() => {
+    if (currentUser) {
+      const updatedUser = users.find(u => u.id === currentUser.id);
+      if (updatedUser && JSON.stringify(updatedUser) !== JSON.stringify(currentUser)) {
+        setCurrentUser(updatedUser);
+      }
+    }
+  }, [users]);
 
   const showNotification = (msg, type = 'success') => {
     setNotification({ msg, type });
@@ -78,9 +364,6 @@ export default function App() {
 
   const updateUserBalance = (userId, amount) => {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, balance: u.balance + amount } : u));
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => ({ ...prev, balance: prev.balance + amount }));
-    }
   };
 
   const handleLogout = () => {
@@ -90,7 +373,7 @@ export default function App() {
     setShowOnboarding(false);
   };
 
-  // --- UI COMPONENTS ---
+  // --- INTERNAL USER TABS ---
 
   const OnboardingOverlay = () => {
     const [step, setStep] = useState(0);
@@ -226,243 +509,6 @@ export default function App() {
     );
   };
 
-  const AdminDashboardTab = () => {
-    const [depositUser, setDepositUser] = useState('');
-    const [depositWeight, setDepositWeight] = useState('');
-    const [selectedWaste, setSelectedWaste] = useState(WASTE_TYPES[0]);
-
-    const handleDeposit = (e) => {
-      e.preventDefault();
-      if (!depositUser || !depositWeight) return;
-      const points = Math.floor(parseFloat(depositWeight) * selectedWaste.price);
-      
-      updateUserBalance(depositUser, points);
-      
-      const newTx = {
-        id: 't' + Date.now(),
-        userId: depositUser,
-        type: 'earn',
-        amount: points,
-        desc: `Setor ${depositWeight}${selectedWaste.unit} ${selectedWaste.name}`,
-        date: new Date().toLocaleDateString('id-ID')
-      };
-      setTransactions([newTx, ...transactions]);
-      
-      setDepositWeight('');
-      setDepositUser('');
-      showNotification(`Berhasil! User +${points} Poin.`);
-    };
-
-    return (
-      <div className="p-4 space-y-6 pb-24">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-blue-600 p-5 rounded-3xl text-white shadow-lg">
-            <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Total Warga</p>
-            <h3 className="text-3xl font-bold">{users.filter(u => u.role === 'user').length}</h3>
-          </div>
-          <div className="bg-orange-500 p-5 rounded-3xl text-white shadow-lg">
-            <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Barang Mart</p>
-            <h3 className="text-3xl font-bold">{products.length}</h3>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-3xl border shadow-sm">
-          <h3 className="font-bold mb-4 flex items-center gap-2 text-gray-800"><Recycle size={18} className="text-green-600"/> Input Setoran (Detail)</h3>
-          <form onSubmit={handleDeposit} className="space-y-4">
-            <div>
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Pilih Warga</label>
-              <select className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500" value={depositUser} onChange={e => setDepositUser(e.target.value)}>
-                <option value="">-- Pilih Akun --</option>
-                {users.filter(u => u.role === 'user' && u.status === 'active').map(u => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Jenis Sampah</label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {WASTE_TYPES.map(w => (
-                  <button type="button" key={w.id} onClick={() => setSelectedWaste(w)} className={`p-2 rounded-xl text-xs font-bold border transition ${selectedWaste.id === w.id ? 'bg-green-100 border-green-500 text-green-700' : 'bg-white border-gray-200 text-gray-600'}`}>
-                    {w.name}
-                    <span className="block text-[10px] opacity-70 mt-1">Rp {w.price}/{w.unit}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Berat / Jumlah ({selectedWaste.unit})</label>
-              <input type="number" step="0.1" className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-green-500" placeholder="0.0" value={depositWeight} onChange={e => setDepositWeight(e.target.value)}/>
-            </div>
-
-            <div className="bg-green-50 p-3 rounded-xl flex justify-between items-center border border-green-100">
-              <span className="text-xs font-bold text-green-800">Estimasi:</span>
-              <span className="text-xl font-black text-green-600">{depositWeight ? Math.floor(parseFloat(depositWeight) * selectedWaste.price) : 0} Poin</span>
-            </div>
-
-            <button type="submit" className="w-full bg-green-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition">Proses Setoran</button>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  const AdminInventoryTab = () => {
-    const [editItem, setEditItem] = useState(null);
-    const [showForm, setShowForm] = useState(false);
-    const [invForm, setInvForm] = useState({ name: '', stock: '', price: '', image: 'oil' });
-
-    const handleSaveItem = () => {
-      if (!invForm.name || !invForm.stock || !invForm.price) return;
-      const newItem = {
-        id: editItem ? editItem.id : 'p' + Date.now(),
-        name: invForm.name,
-        stock: parseInt(invForm.stock),
-        price: parseInt(invForm.price),
-        category: invForm.image === 'package' ? 'Paket' : 'Sembako',
-        image: invForm.image
-      };
-
-      if (editItem) {
-        setProducts(products.map(p => p.id === newItem.id ? newItem : p));
-        showNotification('Barang berhasil diupdate');
-      } else {
-        setProducts([...products, newItem]);
-        showNotification('Barang baru ditambahkan');
-      }
-      setShowForm(false);
-      setEditItem(null);
-      setInvForm({ name: '', stock: '', price: '', image: 'oil' });
-    };
-
-    const handleDeleteItem = (id) => {
-      if(confirm('Hapus barang ini?')) {
-        setProducts(products.filter(p => p.id !== id));
-        showNotification('Barang dihapus');
-      }
-    };
-
-    return (
-      <div className="p-4 space-y-6 pb-24">
-        {showForm ? (
-          <div className="bg-white p-5 rounded-3xl shadow-lg border relative">
-             <button onClick={() => setShowForm(false)} className="absolute top-4 right-4 text-gray-400"><X size={20}/></button>
-             <h3 className="font-bold text-gray-800 mb-4">{editItem ? 'Edit Barang' : 'Tambah Barang'}</h3>
-             <div className="space-y-3">
-               <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Nama Barang" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} />
-               <div className="flex gap-2">
-                 <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Stok" value={invForm.stock} onChange={e => setInvForm({...invForm, stock: e.target.value})} />
-                 <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Harga (Poin)" value={invForm.price} onChange={e => setInvForm({...invForm, price: e.target.value})} />
-               </div>
-               <select className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" value={invForm.image} onChange={e => setInvForm({...invForm, image: e.target.value})}>
-                 <option value="oil">Ikon Minyak</option>
-                 <option value="rice">Ikon Beras</option>
-                 <option value="sugar">Ikon Gula</option>
-                 <option value="egg">Ikon Telur</option>
-                 <option value="noodle">Ikon Mie</option>
-                 <option value="package">Ikon Paket Sembako</option>
-               </select>
-               <button onClick={handleSaveItem} className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2"><Save size={18}/> Simpan</button>
-             </div>
-          </div>
-        ) : (
-          <button onClick={() => { setEditItem(null); setInvForm({name:'', stock:'', price:'', image:'oil'}); setShowForm(true); }} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border border-blue-200 flex items-center justify-center gap-2">
-            <Plus size={18}/> Tambah Stok Barang
-          </button>
-        )}
-
-        <div className="space-y-3">
-          {products.map(p => (
-            <div key={p.id} className="bg-white p-3 rounded-2xl shadow-sm border flex justify-between items-center">
-              <div>
-                <h4 className="font-bold text-gray-800 text-sm">{p.name}</h4>
-                <div className="text-xs text-gray-500 flex gap-2 mt-1">
-                   <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">Stok: {p.stock}</span>
-                   <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded">{p.price} Poin</span>
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => { setEditItem(p); setInvForm(p); setShowForm(true); }} className="p-2 bg-gray-100 rounded-lg text-gray-600"><Edit size={16}/></button>
-                <button onClick={() => handleDeleteItem(p.id)} className="p-2 bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const AdminUserTab = () => {
-    const [editUser, setEditUser] = useState(null);
-    const [userForm, setUserForm] = useState({ name: '', username: '', password: '', role: 'user' });
-
-    const handleSaveUser = () => {
-      if (!userForm.name || !userForm.username || !userForm.password) return;
-      if (editUser) {
-        setUsers(users.map(u => u.id === editUser.id ? { ...u, ...userForm } : u));
-        showNotification('User berhasil diperbarui');
-      } else {
-        if (users.find(u => u.username === userForm.username)) return showNotification('Username sudah ada', 'error');
-        setUsers([...users, { id: 'u' + Date.now(), ...userForm, balance: 0, status: 'active', joined: new Date().toLocaleDateString('id-ID'), isNew: false }]);
-        showNotification('User baru ditambahkan');
-      }
-      setEditUser(null);
-      setUserForm({ name: '', username: '', password: '', role: 'user' });
-    };
-
-    const toggleStatus = (userId) => {
-      setUsers(users.map(u => u.id === userId ? { ...u, status: u.status === 'active' ? 'disabled' : 'active' } : u));
-      showNotification('Status user diubah');
-    };
-
-    return (
-      <div className="p-4 space-y-6 pb-24">
-        <div className="bg-white p-5 rounded-3xl shadow-sm border">
-          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-            {editUser ? <Edit size={18}/> : <Plus size={18}/>} {editUser ? 'Edit Akun' : 'Tambah User'}
-          </h3>
-          <div className="space-y-3">
-            <div className="flex gap-2 p-1 bg-gray-50 rounded-xl mb-2">
-              <button onClick={() => setUserForm({...userForm, role: 'user'})} className={`flex-1 py-1.5 text-xs font-bold rounded-lg ${userForm.role === 'user' ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}>Warga</button>
-              <button onClick={() => setUserForm({...userForm, role: 'admin'})} className={`flex-1 py-1.5 text-xs font-bold rounded-lg ${userForm.role === 'admin' ? 'bg-orange-500 text-white shadow' : 'text-gray-400'}`}>Admin</button>
-            </div>
-            <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Nama Lengkap" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
-            <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Username" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} />
-            <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} />
-            <div className="flex gap-2 pt-2">
-              {editUser && <button onClick={() => { setEditUser(null); setUserForm({name:'', username:'', password:'', role:'user'}); }} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Batal</button>}
-              <button onClick={handleSaveUser} className="flex-[2] py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition">Simpan User</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="font-bold text-gray-500 text-xs uppercase px-1">Daftar Pengguna</h3>
-          {users.map(u => (
-            <div key={u.id} className={`bg-white p-4 rounded-2xl shadow-sm border flex items-center justify-between ${u.status === 'disabled' ? 'bg-gray-50 grayscale opacity-60' : ''}`}>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${u.role === 'admin' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                  {u.role === 'admin' ? <ShieldCheck size={20}/> : <User size={20}/>}
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-gray-800">{u.name} {u.status === 'disabled' && <span className="text-[9px] bg-red-100 text-red-600 px-1 rounded ml-1 font-black">DISABLED</span>}</p>
-                  <p className="text-xs text-gray-400">@{u.username} • {u.balance} pts</p>
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => { setEditUser(u); setUserForm(u); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit size={16}/></button>
-                {u.role === 'user' && (
-                  <button onClick={() => toggleStatus(u.id)} className={`p-2 rounded-lg ${u.status === 'disabled' ? 'text-green-600' : 'text-red-400'}`}>
-                    {u.status === 'disabled' ? <CheckCircle size={16}/> : <Ban size={16}/>}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   const UserHomeTab = () => (
     <div className="p-4 space-y-6 pb-24">
       <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
@@ -543,7 +589,79 @@ export default function App() {
     );
   };
 
-  // --- MAIN RENDER ---
+  const UserHistoryTab = () => {
+    const myTransactions = transactions.filter(t => t.userId === currentUser.id);
+    return (
+      <div className="p-4 pb-24">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => setActiveTab('home')} className="p-1"><ArrowRight className="rotate-180"/></button>
+          <h2 className="text-xl font-bold">Riwayat Transaksi</h2>
+        </div>
+        {myTransactions.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">Belum ada riwayat transaksi.</div>
+        ) : (
+          <div className="space-y-3">
+            {myTransactions.map((t, idx) => (
+              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-full ${t.type === 'earn' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                    {t.type === 'earn' ? <TrendingUp size={20}/> : <ShoppingBag size={20}/>}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-gray-800">{t.desc}</p>
+                    <p className="text-xs text-gray-400">{t.date}</p>
+                  </div>
+                </div>
+                <span className={`font-bold text-sm ${t.type === 'earn' ? 'text-green-600' : 'text-orange-600'}`}>
+                  {t.type === 'earn' ? '+' : '-'}{t.amount}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const UserProfileTab = () => (
+    <div className="p-4 space-y-6 pb-24">
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 text-center">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 text-green-600">
+          <User size={40}/>
+        </div>
+        <h2 className="text-lg font-bold text-gray-800">{currentUser.name}</h2>
+        <p className="text-sm text-gray-500">@{currentUser.username}</p>
+        <span className="inline-block mt-2 px-3 py-1 bg-green-50 text-green-700 text-xs font-bold rounded-full">Member Warga</span>
+      </div>
+
+      <div className="space-y-3">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm font-bold text-gray-600">
+            <Calendar size={18} className="text-gray-400"/> Bergabung
+          </div>
+          <span className="text-sm text-gray-800 font-medium">{currentUser.joined}</span>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm font-bold text-gray-600">
+            <Wallet size={18} className="text-gray-400"/> Sisa Saldo
+          </div>
+          <span className="text-sm text-green-600 font-bold">{currentUser.balance} Poin</span>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm font-bold text-gray-600">
+            <CreditCard size={18} className="text-gray-400"/> Status Akun
+          </div>
+          <span className="text-sm text-blue-600 font-bold uppercase">{currentUser.status}</span>
+        </div>
+      </div>
+
+      <button onClick={handleLogout} className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2 mt-8">
+        <LogOut size={18}/> Keluar Aplikasi
+      </button>
+    </div>
+  );
+
+  // --- RENDER ---
 
   if (!currentUser) return <AuthScreen />;
 
@@ -581,9 +699,9 @@ export default function App() {
       <div className="flex-1 overflow-y-auto">
         {currentUser.role === 'admin' ? (
           <>
-            {activeTab === 'admin-dashboard' && <AdminDashboardTab />}
-            {activeTab === 'admin-users' && <AdminUserTab />}
-            {activeTab === 'admin-inventory' && <AdminInventoryTab />}
+            {activeTab === 'admin-dashboard' && <AdminDashboard users={users} products={products} updateUserBalance={updateUserBalance} setTransactions={setTransactions} transactions={transactions} showNotification={showNotification} />}
+            {activeTab === 'admin-users' && <AdminUserManagement users={users} setUsers={setUsers} showNotification={showNotification} />}
+            {activeTab === 'admin-inventory' && <AdminInventoryManagement products={products} setProducts={setProducts} showNotification={showNotification} />}
           </>
         ) : (
           <>
@@ -619,6 +737,15 @@ export default function App() {
                         const total = cart.reduce((a,c) => a + (c.price*c.qty), 0);
                         if(currentUser.balance < total) return showNotification('Poin kamu nggak cukup!', 'error');
                         updateUserBalance(currentUser.id, -total);
+                        const newTx = {
+                          id: 't' + Date.now(),
+                          userId: currentUser.id,
+                          type: 'spend',
+                          amount: total,
+                          desc: `Belanja ${cart.length} jenis item`,
+                          date: new Date().toLocaleDateString('id-ID')
+                        };
+                        setTransactions([newTx, ...transactions]);
                         setCart([]); setActiveTab('home'); showNotification('Sembako siap diambil di loket Admin!');
                       }} className="w-full bg-green-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-green-200 active:scale-95 transition tracking-widest uppercase">Konfirmasi Sekarang</button>
                     </div>
@@ -626,6 +753,8 @@ export default function App() {
                 </div>
               </div>
             )}
+            {activeTab === 'history' && <UserHistoryTab />}
+            {activeTab === 'profile' && <UserProfileTab />}
           </>
         )}
       </div>
@@ -643,7 +772,9 @@ export default function App() {
             <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-green-600' : 'text-gray-400'}`}>
               <History size={24} strokeWidth={activeTab === 'history' ? 2.5 : 2}/><span className="text-[10px] font-bold">Riwayat</span>
             </button>
-            <button className="flex flex-col items-center gap-1 text-gray-400"><User size={24}/><span className="text-[10px] font-bold">Profil</span></button>
+            <button onClick={() => setActiveTab('profile')} className={`flex flex-col items-center gap-1 ${activeTab === 'profile' ? 'text-green-600' : 'text-gray-400'}`}>
+              <User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2}/><span className="text-[10px] font-bold">Profil</span>
+            </button>
           </>
         ) : (
           <>
@@ -651,7 +782,7 @@ export default function App() {
               <ShieldCheck size={24} strokeWidth={activeTab === 'admin-dashboard' ? 2.5 : 2}/><span className="text-[10px] font-bold">Dashboard</span>
             </button>
             <button onClick={() => setActiveTab('admin-users')} className={`flex-1 flex flex-col items-center gap-1 ${activeTab === 'admin-users' ? 'text-orange-500' : 'text-gray-400'}`}>
-              <Users size={24} strokeWidth={activeTab === 'admin-users' ? 2.5 : 2}/><span className="text-[10px] font-bold">Warga</span>
+              <Users size={24} strokeWidth={activeTab === 'admin-users' ? 2.5 : 2}/><span className="text-[10px] font-bold">Akun</span>
             </button>
             <button onClick={() => setActiveTab('admin-inventory')} className={`flex-1 flex flex-col items-center gap-1 ${activeTab === 'admin-inventory' ? 'text-orange-500' : 'text-gray-400'}`}>
               <Package size={24} strokeWidth={activeTab === 'admin-inventory' ? 2.5 : 2}/><span className="text-[10px] font-bold">Gudang</span>
