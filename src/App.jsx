@@ -46,9 +46,6 @@ const WASTE_TYPES = [
 const DEFAULT_PRODUCTS = [
   { id: 'p1', name: 'Minyak Goreng 1L', price: 100, stock: 20, category: 'Sembako', image: 'oil' },
   { id: 'p2', name: 'Beras Premium 3Kg', price: 250, stock: 15, category: 'Sembako', image: 'rice' },
-  { id: 'p3', name: 'Gula Pasir 1Kg', price: 80, stock: 30, category: 'Sembako', image: 'sugar' },
-  { id: 'p4', name: 'Telur Ayam 1/2 Kg', price: 120, stock: 10, category: 'Lauk', image: 'egg' },
-  { id: 'p5', name: 'Mie Instan (5 Pcs)', price: 40, stock: 100, category: 'Makanan', image: 'noodle' },
   { id: 'p6', name: 'Paket Sembako Lite (Beras, Minyak, Gula, Telur)', price: 500, stock: 5, category: 'Paket', image: 'package' },
 ];
 
@@ -137,7 +134,7 @@ export default function App() {
     const handleAuth = (e) => {
       e.preventDefault();
       if (isRegister && authTab === 'user') {
-        if (!formData.username || !formData.password || !formData.name) return showNotification('Mohon lengkapi Data Pendaftaran!', 'error');
+        if (!formData.username || !formData.password || !formData.name) return showNotification('Data harus lengkap!', 'error');
         if (users.some(u => u.username === formData.username)) return showNotification('Username sudah dipakai', 'error');
         const newUser = { id: 'u' + Date.now(), ...formData, role: 'user', balance: 0, joined: new Date().toLocaleDateString('id-ID'), status: 'active', isNew: true };
         setUsers([...users, newUser]);
@@ -211,8 +208,8 @@ export default function App() {
             <div className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-green-100">
               <div className="bg-green-100 p-3 rounded-full text-green-600 font-bold">3</div>
               <div>
-                <p className="font-bold text-sm">Belanja Sembako</p>
-                <p className="text-xs text-gray-500">Pake poinmu buat ambil beras, minyak, atau telur di Mart/Merchant.</p>
+                <p className="font-bold text-sm">Borong Sembako</p>
+                <p className="text-xs text-gray-500">Pake poinmu buat ambil beras, minyak, atau telur di mart.</p>
               </div>
             </div>
           </div>
@@ -220,10 +217,175 @@ export default function App() {
           <div className="bg-green-100/50 p-6 rounded-3xl space-y-4 border border-green-100">
             <h4 className="font-bold text-green-800 flex items-center gap-2 text-sm"><HelpCircle size={16}/> Ada Kendala?</h4>
             <div className="text-xs text-green-700 space-y-3">
-              <p><strong>Lupa Password?</strong> Tenang, jangan panik. Langsung hubungi Admin/Petugas di loket Merchant terdekat buat reset ya!</p>
+              <p><strong>Lupa Password?</strong> Tenang, jangan panik. Langsung hubungi Admin/Petugas di loket terdekat buat reset ya!</p>
               <p><strong>Sampah apa aja?</strong> Fokus kita ke barang kering (Kardus, Plastik, Kaleng) & Minyak Jelantah.</p>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AdminDashboardTab = () => {
+    const [depositUser, setDepositUser] = useState('');
+    const [depositWeight, setDepositWeight] = useState('');
+    const [selectedWaste, setSelectedWaste] = useState(WASTE_TYPES[0]);
+
+    const handleDeposit = (e) => {
+      e.preventDefault();
+      if (!depositUser || !depositWeight) return;
+      const points = Math.floor(parseFloat(depositWeight) * selectedWaste.price);
+      
+      updateUserBalance(depositUser, points);
+      
+      const newTx = {
+        id: 't' + Date.now(),
+        userId: depositUser,
+        type: 'earn',
+        amount: points,
+        desc: `Setor ${depositWeight}${selectedWaste.unit} ${selectedWaste.name}`,
+        date: new Date().toLocaleDateString('id-ID')
+      };
+      setTransactions([newTx, ...transactions]);
+      
+      setDepositWeight('');
+      setDepositUser('');
+      showNotification(`Berhasil! User +${points} Poin.`);
+    };
+
+    return (
+      <div className="p-4 space-y-6 pb-24">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-600 p-5 rounded-3xl text-white shadow-lg">
+            <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Total Warga</p>
+            <h3 className="text-3xl font-bold">{users.filter(u => u.role === 'user').length}</h3>
+          </div>
+          <div className="bg-orange-500 p-5 rounded-3xl text-white shadow-lg">
+            <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Barang Mart</p>
+            <h3 className="text-3xl font-bold">{products.length}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border shadow-sm">
+          <h3 className="font-bold mb-4 flex items-center gap-2 text-gray-800"><Recycle size={18} className="text-green-600"/> Input Setoran (Detail)</h3>
+          <form onSubmit={handleDeposit} className="space-y-4">
+            <div>
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Pilih Warga</label>
+              <select className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500" value={depositUser} onChange={e => setDepositUser(e.target.value)}>
+                <option value="">-- Pilih Akun --</option>
+                {users.filter(u => u.role === 'user' && u.status === 'active').map(u => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Jenis Sampah</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {WASTE_TYPES.map(w => (
+                  <button type="button" key={w.id} onClick={() => setSelectedWaste(w)} className={`p-2 rounded-xl text-xs font-bold border transition ${selectedWaste.id === w.id ? 'bg-green-100 border-green-500 text-green-700' : 'bg-white border-gray-200 text-gray-600'}`}>
+                    {w.name}
+                    <span className="block text-[10px] opacity-70 mt-1">Rp {w.price}/{w.unit}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Berat / Jumlah ({selectedWaste.unit})</label>
+              <input type="number" step="0.1" className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-lg font-bold outline-none focus:ring-2 focus:ring-green-500" placeholder="0.0" value={depositWeight} onChange={e => setDepositWeight(e.target.value)}/>
+            </div>
+
+            <div className="bg-green-50 p-3 rounded-xl flex justify-between items-center border border-green-100">
+              <span className="text-xs font-bold text-green-800">Estimasi:</span>
+              <span className="text-xl font-black text-green-600">{depositWeight ? Math.floor(parseFloat(depositWeight) * selectedWaste.price) : 0} Poin</span>
+            </div>
+
+            <button type="submit" className="w-full bg-green-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-green-700 transition">Proses Setoran</button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const AdminInventoryTab = () => {
+    const [editItem, setEditItem] = useState(null);
+    const [showForm, setShowForm] = useState(false);
+    const [invForm, setInvForm] = useState({ name: '', stock: '', price: '', image: 'oil' });
+
+    const handleSaveItem = () => {
+      if (!invForm.name || !invForm.stock || !invForm.price) return;
+      const newItem = {
+        id: editItem ? editItem.id : 'p' + Date.now(),
+        name: invForm.name,
+        stock: parseInt(invForm.stock),
+        price: parseInt(invForm.price),
+        category: invForm.image === 'package' ? 'Paket' : 'Sembako',
+        image: invForm.image
+      };
+
+      if (editItem) {
+        setProducts(products.map(p => p.id === newItem.id ? newItem : p));
+        showNotification('Barang berhasil diupdate');
+      } else {
+        setProducts([...products, newItem]);
+        showNotification('Barang baru ditambahkan');
+      }
+      setShowForm(false);
+      setEditItem(null);
+      setInvForm({ name: '', stock: '', price: '', image: 'oil' });
+    };
+
+    const handleDeleteItem = (id) => {
+      if(confirm('Hapus barang ini?')) {
+        setProducts(products.filter(p => p.id !== id));
+        showNotification('Barang dihapus');
+      }
+    };
+
+    return (
+      <div className="p-4 space-y-6 pb-24">
+        {showForm ? (
+          <div className="bg-white p-5 rounded-3xl shadow-lg border relative">
+             <button onClick={() => setShowForm(false)} className="absolute top-4 right-4 text-gray-400"><X size={20}/></button>
+             <h3 className="font-bold text-gray-800 mb-4">{editItem ? 'Edit Barang' : 'Tambah Barang'}</h3>
+             <div className="space-y-3">
+               <input className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Nama Barang" value={invForm.name} onChange={e => setInvForm({...invForm, name: e.target.value})} />
+               <div className="flex gap-2">
+                 <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Stok" value={invForm.stock} onChange={e => setInvForm({...invForm, stock: e.target.value})} />
+                 <input type="number" className="w-1/2 p-2.5 bg-gray-50 border rounded-xl text-sm" placeholder="Harga (Poin)" value={invForm.price} onChange={e => setInvForm({...invForm, price: e.target.value})} />
+               </div>
+               <select className="w-full p-2.5 bg-gray-50 border rounded-xl text-sm" value={invForm.image} onChange={e => setInvForm({...invForm, image: e.target.value})}>
+                 <option value="oil">Ikon Minyak</option>
+                 <option value="rice">Ikon Beras</option>
+                 <option value="sugar">Ikon Gula</option>
+                 <option value="egg">Ikon Telur</option>
+                 <option value="noodle">Ikon Mie</option>
+                 <option value="package">Ikon Paket Sembako</option>
+               </select>
+               <button onClick={handleSaveItem} className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2"><Save size={18}/> Simpan</button>
+             </div>
+          </div>
+        ) : (
+          <button onClick={() => { setEditItem(null); setInvForm({name:'', stock:'', price:'', image:'oil'}); setShowForm(true); }} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold border border-blue-200 flex items-center justify-center gap-2">
+            <Plus size={18}/> Tambah Stok Barang
+          </button>
+        )}
+
+        <div className="space-y-3">
+          {products.map(p => (
+            <div key={p.id} className="bg-white p-3 rounded-2xl shadow-sm border flex justify-between items-center">
+              <div>
+                <h4 className="font-bold text-gray-800 text-sm">{p.name}</h4>
+                <div className="text-xs text-gray-500 flex gap-2 mt-1">
+                   <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">Stok: {p.stock}</span>
+                   <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded">{p.price} Poin</span>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => { setEditItem(p); setInvForm(p); setShowForm(true); }} className="p-2 bg-gray-100 rounded-lg text-gray-600"><Edit size={16}/></button>
+                <button onClick={() => handleDeleteItem(p.id)} className="p-2 bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -419,44 +581,9 @@ export default function App() {
       <div className="flex-1 overflow-y-auto">
         {currentUser.role === 'admin' ? (
           <>
-            {activeTab === 'admin-dashboard' && (
-              <div className="p-4 space-y-6 pb-24">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-600 p-5 rounded-3xl text-white shadow-lg">
-                    <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Total Warga</p>
-                    <h3 className="text-3xl font-bold">{users.filter(u => u.role === 'user').length}</h3>
-                  </div>
-                  <div className="bg-orange-500 p-5 rounded-3xl text-white shadow-lg">
-                    <p className="text-[10px] font-bold opacity-70 uppercase mb-1">Barang Mart</p>
-                    <h3 className="text-3xl font-bold">{products.length}</h3>
-                  </div>
-                </div>
-                <div className="bg-white p-5 rounded-3xl border shadow-sm">
-                  <h3 className="font-bold mb-4 flex items-center gap-2 text-gray-800"><Recycle size={18} className="text-green-600"/> Input Setoran</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Pilih Nama Warga</label>
-                      <select className="w-full mt-1 p-3 bg-gray-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500" onChange={e => {
-                        if (!e.target.value) return;
-                        updateUserBalance(e.target.value, 50);
-                        showNotification('Berhasil tambah 50 poin!');
-                      }}>
-                        <option value="">-- Pilih Akun Warga --</option>
-                        {users.filter(u => u.role === 'user' && u.status === 'active').map(u => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)}
-                      </select>
-                    </div>
-                    <p className="text-[10px] text-gray-400 italic font-medium leading-relaxed">*Fitur cepat admin: Default nambah +50 poin per klik untuk tes.</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {activeTab === 'admin-dashboard' && <AdminDashboardTab />}
             {activeTab === 'admin-users' && <AdminUserTab />}
-            {activeTab === 'admin-inventory' && (
-              <div className="p-4 space-y-4 pb-24 text-center py-20 text-gray-400">
-                <Package size={48} className="mx-auto opacity-20 mb-2"/>
-                <p className="text-sm font-medium">Fitur manajemen stok sedang dimaintenance.</p>
-              </div>
-            )}
+            {activeTab === 'admin-inventory' && <AdminInventoryTab />}
           </>
         ) : (
           <>
