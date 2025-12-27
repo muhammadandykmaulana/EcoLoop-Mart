@@ -33,7 +33,10 @@ import {
   PieChart,
   Truck,
   Activity,
-  Box
+  Box,
+  Hammer,
+  Store as StoreIcon,
+  ChevronLeft
 } from 'lucide-react';
 
 // --- INITIAL DATA ---
@@ -69,6 +72,8 @@ const DEFAULT_PRODUCTS = [
 // --- SUB-COMPONENTS ---
 
 const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }) => {
+  const [partnerView, setPartnerView] = useState(null); // null, 'craftsman', 'supplier'
+
   if (!isOpen) return null;
 
   // 1. Total Sampah (Kg/Ton)
@@ -78,15 +83,14 @@ const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }
     : `${totalWeight.toFixed(1)} Kg`;
 
   // 2. Jumlah Setor Sampah Per Bulan (Simple count for now based on current data)
-  const currentMonth = new Date().getMonth();
-  const monthlyDeposits = transactions.filter(t => t.type === 'earn').length; // Simplified for demo
+  const monthlyDeposits = transactions.filter(t => t.type === 'earn').length; 
 
   // 3. Jenis Sampah Terbanyak
   const wasteCount = {};
   transactions.filter(t => t.type === 'earn').forEach(t => {
     wasteCount[t.category] = (wasteCount[t.category] || 0) + (t.weight || 0);
   });
-  const topWaste = Object.keys(wasteCount).reduce((a, b) => wasteCount[a] > wasteCount[b] ? a : b, '-');
+  const topWaste = Object.keys(wasteCount).length > 0 ? Object.keys(wasteCount).reduce((a, b) => wasteCount[a] > wasteCount[b] ? a : b) : '-';
 
   // 4. Poin Beredar & Ditukar
   const totalEarned = transactions.filter(t => t.type === 'earn').reduce((acc, t) => acc + t.amount, 0);
@@ -99,6 +103,19 @@ const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }
   // 6. Pertumbuhan User (Mock Calculation based on array)
   const totalUsers = users.filter(u => u.role === 'user').length;
   const newUsersThisMonth = users.filter(u => u.role === 'user' && u.isNew).length;
+
+  // --- DUMMY DATA MITRA ---
+  const CRAFTSMEN_DATA = [
+    { name: "CV Kreasi Plastik", product: "Paving Block & Bata", loc: "Tangerang" },
+    { name: "Bank Sampah Kreatif", product: "Tas & Dompet Daur Ulang", loc: "Jakarta Selatan" },
+    { name: "Studio Pot Botol", product: "Pot Tanaman Hias", loc: "Depok" }
+  ];
+
+  const SUPPLIER_DATA = [
+    { name: "Toko H. Slamet", desc: "Agen Sembako Grosir", loc: "Ps. Kramat Jati" },
+    { name: "Agen Beras Makmur Jaya", desc: "Spesialis Beras Premium", loc: "Ps. Induk Cipinang" },
+    { name: "Grosir Telur Sumber Rejeki", desc: "Suplier Telur Ayam", loc: "Ps. Minggu" }
+  ];
 
   return (
     <div className="fixed inset-0 z-[150] bg-gray-50 flex flex-col animate-in slide-in-from-bottom duration-300">
@@ -189,36 +206,90 @@ const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }
           </div>
         </div>
 
-        {/* SECTION 4: PARTNERSHIP & GROWTH (MOCK DATA) */}
+        {/* SECTION 4: PARTNERSHIP & GROWTH (INTERACTIVE) */}
         <div className="bg-white p-5 rounded-2xl border shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Mitra & Pertumbuhan</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Mitra & Ekosistem</h3>
+            {partnerView && (
+              <button onClick={() => setPartnerView(null)} className="text-xs text-blue-600 flex items-center gap-1 font-bold">
+                <ChevronLeft size={14}/> Kembali
+              </button>
+            )}
+          </div>
           
-          <div className="flex items-center gap-4 mb-6">
-             <div className="bg-purple-100 p-3 rounded-full text-purple-600"><Users size={24}/></div>
-             <div className="flex-1">
-               <p className="text-xs text-gray-500">Pertumbuhan User</p>
-               <p className="font-bold text-lg text-gray-800">{totalUsers} Warga <span className="text-green-500 text-xs">(+{newUsersThisMonth} Baru)</span></p>
-             </div>
-          </div>
+          {partnerView === null ? (
+            <>
+              <div className="flex items-center gap-4 mb-6 bg-purple-50 p-4 rounded-xl">
+                 <div className="bg-purple-100 p-3 rounded-full text-purple-600"><Users size={24}/></div>
+                 <div className="flex-1">
+                   <p className="text-xs text-gray-500">Pertumbuhan User</p>
+                   <p className="font-bold text-lg text-gray-800">{totalUsers} Warga <span className="text-green-500 text-xs">(+{newUsersThisMonth} Baru)</span></p>
+                 </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50">
-               <div className="flex items-center gap-2 mb-2">
-                 <Truck size={14} className="text-gray-500"/>
-                 <span className="text-[10px] font-bold uppercase text-gray-500">Pengepul</span>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => setPartnerView('craftsman')}
+                  className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-green-50 hover:border-green-300 transition text-left group"
+                >
+                   <div className="flex items-center gap-2 mb-2">
+                     <Hammer size={14} className="text-gray-500 group-hover:text-green-600"/>
+                     <span className="text-[10px] font-bold uppercase text-gray-500 group-hover:text-green-700">Pengrajin Sampah</span>
+                   </div>
+                   <p className="font-bold text-gray-800 text-sm">3 Mitra Aktif</p>
+                   <p className="text-[10px] text-green-600 mt-1">Produk Bernilai Tambah</p>
+                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk detail</p>
+                </button>
+                <button 
+                  onClick={() => setPartnerView('supplier')}
+                  className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition text-left group"
+                >
+                   <div className="flex items-center gap-2 mb-2">
+                     <StoreIcon size={14} className="text-gray-500 group-hover:text-blue-600"/>
+                     <span className="text-[10px] font-bold uppercase text-gray-500 group-hover:text-blue-700">Agen Grosir Pasar</span>
+                   </div>
+                   <p className="font-bold text-gray-800 text-sm">3 Toko Mitra</p>
+                   <p className="text-[10px] text-blue-600 mt-1">Support UMKM Lokal</p>
+                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk detail</p>
+                </button>
+              </div>
+            </>
+          ) : partnerView === 'craftsman' ? (
+            <div className="space-y-3 animate-in fade-in zoom-in duration-200">
+               <div className="bg-green-100 p-3 rounded-xl mb-2 text-green-800 text-xs font-bold flex items-center gap-2">
+                 <Hammer size={16}/> Daftar Mitra Pengrajin (Upcycling)
                </div>
-               <p className="font-bold text-gray-800 text-sm">2 Mitra Utama</p>
-               <p className="text-[10px] text-green-600 mt-1">Aktif Ambil Sampah</p>
+               {CRAFTSMEN_DATA.map((item, idx) => (
+                 <div key={idx} className="border p-3 rounded-xl bg-gray-50 flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-sm text-gray-800">{item.name}</p>
+                      <p className="text-xs text-gray-500">{item.loc}</p>
+                    </div>
+                    <div className="bg-green-200 text-green-800 text-[10px] px-2 py-1 rounded font-bold">
+                      {item.product}
+                    </div>
+                 </div>
+               ))}
             </div>
-            <div className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50">
-               <div className="flex items-center gap-2 mb-2">
-                 <Box size={14} className="text-gray-500"/>
-                 <span className="text-[10px] font-bold uppercase text-gray-500">Supplier</span>
+          ) : (
+             <div className="space-y-3 animate-in fade-in zoom-in duration-200">
+               <div className="bg-blue-100 p-3 rounded-xl mb-2 text-blue-800 text-xs font-bold flex items-center gap-2">
+                 <StoreIcon size={16}/> Daftar Agen Grosir Pasar Tradisional
                </div>
-               <p className="font-bold text-gray-800 text-sm">3 Merchant</p>
-               <p className="text-[10px] text-blue-600 mt-1">Suplai Sembako</p>
+               {SUPPLIER_DATA.map((item, idx) => (
+                 <div key={idx} className="border p-3 rounded-xl bg-gray-50 flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-sm text-gray-800">{item.name}</p>
+                      <p className="text-xs text-gray-500">{item.loc}</p>
+                    </div>
+                    <div className="bg-blue-200 text-blue-800 text-[10px] px-2 py-1 rounded font-bold max-w-[100px] text-right">
+                      {item.desc}
+                    </div>
+                 </div>
+               ))}
             </div>
-          </div>
+          )}
+
         </div>
         
         <div className="text-center pb-8 opacity-50">
@@ -626,6 +697,20 @@ export default function App() {
           </div>
         ),
         icon: <HelpCircle size={60} className="text-blue-500"/>
+      },
+      // SLIDE BARU: BANTUAN AKUN
+      {
+        title: "Bantuan Akun",
+        content: (
+          <div className="text-center space-y-3 mt-2 text-gray-600">
+             <p className="text-sm font-bold text-gray-800">Lupa Password / Akun Terkunci?</p>
+             <div className="bg-orange-50 p-4 rounded-xl border border-orange-200 text-xs leading-relaxed text-orange-800">
+                <p>⚠️ Jangan panik! Demi keamanan, reset password hanya bisa dilakukan oleh <strong>Petugas Admin</strong>.</p>
+                <p className="mt-2 font-bold">Silakan kunjungi loket EcoLoop Mart terdekat.</p>
+             </div>
+          </div>
+        ),
+        icon: <Lock size={60} className="text-red-500"/>
       }
     ];
 
@@ -649,7 +734,7 @@ export default function App() {
             {slides.map((_, i) => <div key={i} className={`h-1.5 rounded-full transition-all ${step === i ? 'w-6 bg-green-600' : 'w-2 bg-gray-200'}`} />)}
           </div>
           <button onClick={handleNext} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition">
-            {step === slides.length - 1 ? "Mulai Sekarang" : "Lanjut"} <ChevronRight size={18}/>
+            {step === slides.length - 1 ? "Saya Mengerti" : "Lanjut"} <ChevronRight size={18}/>
           </button>
         </div>
       </div>
