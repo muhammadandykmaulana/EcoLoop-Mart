@@ -36,21 +36,39 @@ import {
   Box,
   Hammer,
   Store as StoreIcon,
-  ChevronLeft
+  ChevronLeft,
+  MapPin,
+  ExternalLink,
+  Trophy
 } from 'lucide-react';
 
 // --- INITIAL DATA ---
 const INITIAL_USERS = [
   { id: 'u1', username: 'budi', password: '123', name: 'Budi Santoso', role: 'user', balance: 150, joined: '01/10/2025', status: 'active', isNew: false },
-  { id: 'u2', username: 'siti', password: '123', name: 'Siti Aminah', role: 'user', balance: 0, joined: '15/11/2025', status: 'active', isNew: true },
+  { id: 'u2', username: 'siti', password: '123', name: 'Siti Aminah', role: 'user', balance: 50, joined: '15/11/2025', status: 'active', isNew: true },
+  { id: 'u3', username: 'rudi', password: '123', name: 'Rudi Hartono', role: 'user', balance: 320, joined: '20/11/2025', status: 'active', isNew: false },
+  { id: 'u4', username: 'ani', password: '123', name: 'Ani Wijaya', role: 'user', balance: 80, joined: '22/11/2025', status: 'active', isNew: false },
+  { id: 'u5', username: 'joko', password: '123', name: 'Joko Anwar', role: 'user', balance: 10, joined: '01/12/2025', status: 'active', isNew: false },
+  { id: 'u6', username: 'linda', password: '123', name: 'Linda Sari', role: 'user', balance: 450, joined: '05/12/2025', status: 'active', isNew: false },
   { id: 'a1', username: 'admin', password: 'admin', name: 'Admin IndoApril', role: 'admin', balance: 0, joined: '01/10/2025', status: 'active', isNew: false },
 ];
 
-// Added 'weight' property to transactions for analytics
 const INITIAL_TRANSACTIONS = [
   { id: 't1', userId: 'u1', type: 'earn', amount: 50, category: 'Kardus Bekas', desc: 'Setor 2.5kg Kardus', weight: 2.5, date: '01/12/2023' },
   { id: 't2', userId: 'u1', type: 'spend', amount: 100, category: 'Belanja', desc: 'Tukar Minyak Goreng', weight: 0, date: '02/12/2023' },
   { id: 't3', userId: 'u2', type: 'earn', amount: 35, category: 'Botol Plastik', desc: 'Setor 1.0kg Botol', weight: 1.0, date: '03/12/2023' },
+];
+
+const INITIAL_CRAFTSMEN = [
+  { id: 'c1', name: "CV Kreasi Plastik", product: "Paving Block & Bata", loc: "Tangerang", mapsLink: "https://maps.google.com" },
+  { id: 'c2', name: "Bank Sampah Kreatif", product: "Tas & Dompet Daur Ulang", loc: "Jakarta Selatan", mapsLink: "https://maps.google.com" },
+  { id: 'c3', name: "Studio Pot Botol", product: "Pot Tanaman Hias", loc: "Depok", mapsLink: "https://maps.google.com" }
+];
+
+const INITIAL_SUPPLIERS = [
+  { id: 's1', name: "Toko H. Slamet", market: "Ps. Kramat Jati", block: "Blok A1 No. 4", supplyType: "Agen Sembako Grosir" },
+  { id: 's2', name: "Agen Beras Makmur", market: "Ps. Induk Cipinang", block: "Gudang Beras No. 12", supplyType: "Spesialis Beras Premium" },
+  { id: 's3', name: "Grosir Telur Rejeki", market: "Ps. Minggu", block: "Los Basah B-10", supplyType: "Suplier Telur Ayam" }
 ];
 
 const WASTE_TYPES = [
@@ -71,149 +89,256 @@ const DEFAULT_PRODUCTS = [
 
 // --- SUB-COMPONENTS ---
 
-const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }) => {
+const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products, craftsmen, setCraftsmen, suppliers, setSuppliers }) => {
   const [partnerView, setPartnerView] = useState(null); // null, 'craftsman', 'supplier'
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState(null);
+  
+  // Form Templates
+  const emptyCraftsman = { name: '', product: '', loc: '', mapsLink: '' };
+  const emptySupplier = { name: '', market: '', block: '', supplyType: '' };
 
   if (!isOpen) return null;
 
-  // 1. Total Sampah (Kg/Ton)
+  // --- DYNAMIC CALCULATIONS ---
+
+  // 1. Core Metrics
   const totalWeight = transactions.reduce((acc, t) => acc + (t.weight || 0), 0);
-  const weightDisplay = totalWeight >= 1000 
-    ? `${(totalWeight/1000).toFixed(2)} Ton` 
-    : `${totalWeight.toFixed(1)} Kg`;
+  const weightDisplay = totalWeight >= 1000 ? `${(totalWeight/1000).toFixed(2)} Ton` : `${totalWeight.toFixed(1)} Kg`;
+  
+  // 2. Monthly Deposits Growth
+  const now = new Date();
+  const currentMonthIdx = now.getMonth(); 
+  const currentYear = now.getFullYear();
+  
+  const parseDate = (dateStr) => {
+    // assume dd/mm/yyyy format from initial data
+    const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  };
 
-  // 2. Jumlah Setor Sampah Per Bulan (Simple count for now based on current data)
-  const monthlyDeposits = transactions.filter(t => t.type === 'earn').length; 
+  const depositsThisMonth = transactions.filter(t => {
+    if (t.type !== 'earn') return false;
+    const d = parseDate(t.date);
+    return d.getMonth() === currentMonthIdx && d.getFullYear() === currentYear;
+  }).length;
 
-  // 3. Jenis Sampah Terbanyak
+  const depositsLastMonth = transactions.filter(t => {
+    if (t.type !== 'earn') return false;
+    const d = parseDate(t.date);
+    // Simple logic for previous month (ignoring year rollover complexity for basic MVP)
+    return d.getMonth() === (currentMonthIdx === 0 ? 11 : currentMonthIdx - 1); 
+  }).length;
+
+  let growthText = "0% (Stabil)";
+  let growthColor = "text-gray-500";
+  let growthBg = "bg-gray-100";
+
+  if (depositsLastMonth > 0) {
+    const diff = depositsThisMonth - depositsLastMonth;
+    const percent = (diff / depositsLastMonth) * 100;
+    growthText = `${percent > 0 ? '+' : ''}${percent.toFixed(0)}% vs lalu`;
+    growthColor = percent >= 0 ? "text-green-600" : "text-red-600";
+    growthBg = percent >= 0 ? "bg-green-50" : "bg-red-50";
+  } else if (depositsThisMonth > 0) {
+    growthText = "Bulan pertama";
+    growthColor = "text-green-600";
+    growthBg = "bg-green-50";
+  }
+
+  // 3. Waste Analysis
   const wasteCount = {};
   transactions.filter(t => t.type === 'earn').forEach(t => {
     wasteCount[t.category] = (wasteCount[t.category] || 0) + (t.weight || 0);
   });
-  const topWaste = Object.keys(wasteCount).length > 0 ? Object.keys(wasteCount).reduce((a, b) => wasteCount[a] > wasteCount[b] ? a : b) : '-';
+  const topWaste = Object.keys(wasteCount).length > 0 
+    ? Object.keys(wasteCount).reduce((a, b) => wasteCount[a] > wasteCount[b] ? a : b) 
+    : '-';
 
-  // 4. Poin Beredar & Ditukar
+  // 4. User Consistency (Active Users / Total Users)
+  const activeUserIds = new Set(transactions.map(t => t.userId));
+  const totalUserCount = users.filter(u => u.role === 'user').length;
+  const activeUserCount = users.filter(u => u.role === 'user' && activeUserIds.has(u.id)).length;
+  const consistencyRate = totalUserCount > 0 ? Math.round((activeUserCount / totalUserCount) * 100) : 0;
+
+  // 5. Stock Health
+  const outOfStockItems = products.filter(p => p.stock <= 0).length;
+  const totalItems = products.length;
+  const stockHealth = totalItems > 0 ? Math.round(((totalItems - outOfStockItems) / totalItems) * 100) : 0;
+
+  // 6. Others
   const totalEarned = transactions.filter(t => t.type === 'earn').reduce((acc, t) => acc + t.amount, 0);
   const totalRedeemed = transactions.filter(t => t.type === 'spend').reduce((acc, t) => acc + t.amount, 0);
   const circulating = totalEarned - totalRedeemed;
-
-  // 5. Perputaran Stok Sembako (Transaksi Spend)
   const stockTurnover = transactions.filter(t => t.type === 'spend').length;
-
-  // 6. Pertumbuhan User (Mock Calculation based on array)
-  const totalUsers = users.filter(u => u.role === 'user').length;
   const newUsersThisMonth = users.filter(u => u.role === 'user' && u.isNew).length;
 
-  // --- DUMMY DATA MITRA ---
-  const CRAFTSMEN_DATA = [
-    { name: "CV Kreasi Plastik", product: "Paving Block & Bata", loc: "Tangerang" },
-    { name: "Bank Sampah Kreatif", product: "Tas & Dompet Daur Ulang", loc: "Jakarta Selatan" },
-    { name: "Studio Pot Botol", product: "Pot Tanaman Hias", loc: "Depok" }
-  ];
+  // --- CRUD HANDLERS ---
+  const handleEditClick = (item) => {
+    setEditData(item);
+    setIsEditing(true);
+  };
 
-  const SUPPLIER_DATA = [
-    { name: "Toko H. Slamet", desc: "Agen Sembako Grosir", loc: "Ps. Kramat Jati" },
-    { name: "Agen Beras Makmur Jaya", desc: "Spesialis Beras Premium", loc: "Ps. Induk Cipinang" },
-    { name: "Grosir Telur Sumber Rejeki", desc: "Suplier Telur Ayam", loc: "Ps. Minggu" }
-  ];
+  const handleAddClick = () => {
+    setEditData(partnerView === 'craftsman' ? { ...emptyCraftsman, id: '' } : { ...emptySupplier, id: '' });
+    setIsEditing(true);
+  };
+
+  const handleDelete = (id) => {
+    if(!window.confirm("Hapus mitra ini?")) return;
+    if (partnerView === 'craftsman') {
+      setCraftsmen(prev => prev.filter(item => item.id !== id));
+    } else {
+      setSuppliers(prev => prev.filter(item => item.id !== id));
+    }
+  };
+
+  const handleSave = () => {
+    if (!editData.name) return alert("Nama wajib diisi!");
+    const newData = { ...editData, id: editData.id || Date.now().toString() };
+
+    if (partnerView === 'craftsman') {
+      if (editData.id) {
+        setCraftsmen(prev => prev.map(item => item.id === editData.id ? newData : item));
+      } else {
+        setCraftsmen(prev => [...prev, newData]);
+      }
+    } else {
+      if (editData.id) {
+        setSuppliers(prev => prev.map(item => item.id === editData.id ? newData : item));
+      } else {
+        setSuppliers(prev => [...prev, newData]);
+      }
+    }
+    setIsEditing(false);
+    setEditData(null);
+  };
+
+  const renderForm = () => {
+    if (partnerView === 'craftsman') {
+      return (
+        <div className="space-y-3">
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Nama Mitra / CV" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Produk (Misal: Paving Block)" value={editData.product} onChange={e => setEditData({...editData, product: e.target.value})} />
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Lokasi (Kota/Daerah)" value={editData.loc} onChange={e => setEditData({...editData, loc: e.target.value})} />
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Link Google Maps" value={editData.mapsLink} onChange={e => setEditData({...editData, mapsLink: e.target.value})} />
+        </div>
+      );
+    } else {
+      return (
+        <div className="space-y-3">
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Nama Toko" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
+          <input className="w-full p-2 border rounded-lg text-sm" placeholder="Supply Sebagai? (Misal: Agen Beras)" value={editData.supplyType} onChange={e => setEditData({...editData, supplyType: e.target.value})} />
+          <div className="flex gap-2">
+            <input className="w-1/2 p-2 border rounded-lg text-sm" placeholder="Nama Pasar" value={editData.market} onChange={e => setEditData({...editData, market: e.target.value})} />
+            <input className="w-1/2 p-2 border rounded-lg text-sm" placeholder="Blok/No Kios" value={editData.block} onChange={e => setEditData({...editData, block: e.target.value})} />
+          </div>
+        </div>
+      );
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[150] bg-gray-50 flex flex-col animate-in slide-in-from-bottom duration-300">
       <div className="bg-white p-4 border-b shadow-sm flex justify-between items-center sticky top-0 z-10">
-        <h2 className="font-bold text-lg flex items-center gap-2"><BarChart3 className="text-blue-600"/> Laporan Analitik Lengkap</h2>
+        <h2 className="font-bold text-lg flex items-center gap-2"><BarChart3 className="text-blue-600"/> Laporan Analitik</h2>
         <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         
-        {/* SECTION 1: CORE METRICS */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gradient-to-br from-green-500 to-green-600 p-4 rounded-2xl text-white shadow-lg">
-            <div className="flex items-center gap-2 mb-2 opacity-80"><Trash2 size={16}/><span className="text-xs font-bold uppercase">Total Sampah</span></div>
-            <p className="text-2xl font-black">{weightDisplay}</p>
-            <p className="text-[10px] opacity-80 mt-1">Akumulasi seumur hidup</p>
-          </div>
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl text-white shadow-lg">
-            <div className="flex items-center gap-2 mb-2 opacity-80"><Activity size={16}/><span className="text-xs font-bold uppercase">Transaksi Digital</span></div>
-            <p className="text-2xl font-black">{transactions.length}</p>
-            <p className="text-[10px] opacity-80 mt-1">Setoran & Penukaran</p>
-          </div>
-        </div>
+        {!isEditing && partnerView === null && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-green-500 to-green-600 p-4 rounded-2xl text-white shadow-lg">
+                <div className="flex items-center gap-2 mb-2 opacity-80"><Trash2 size={16}/><span className="text-xs font-bold uppercase">Total Sampah</span></div>
+                <p className="text-2xl font-black">{weightDisplay}</p>
+                <p className="text-[10px] opacity-80 mt-1">Akumulasi seumur hidup</p>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl text-white shadow-lg">
+                <div className="flex items-center gap-2 mb-2 opacity-80"><Activity size={16}/><span className="text-xs font-bold uppercase">Transaksi</span></div>
+                <p className="text-2xl font-black">{transactions.length}</p>
+                <p className="text-[10px] opacity-80 mt-1">Setoran & Penukaran</p>
+              </div>
+            </div>
 
-        {/* SECTION 2: WASTE INSIGHTS */}
-        <div className="bg-white p-5 rounded-2xl border shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Analisis Sampah</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><TrendingUp size={18}/></div>
-                <div>
-                  <p className="text-xs text-gray-500">Jenis Terbanyak</p>
-                  <p className="font-bold text-gray-800">{topWaste}</p>
+            <div className="bg-white p-5 rounded-2xl border shadow-sm">
+              <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Analisis Sampah</h3>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><TrendingUp size={18}/></div>
+                    <div>
+                      <p className="text-xs text-gray-500">Jenis Terbanyak</p>
+                      <p className="font-bold text-gray-800">{topWaste}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded">Dominan</span>
+                </div>
+                <div className="flex justify-between items-center border-b pb-3 border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-green-100 p-2 rounded-lg text-green-600"><Calendar size={18}/></div>
+                    <div>
+                      <p className="text-xs text-gray-500">Setoran Bulan Ini</p>
+                      <p className="font-bold text-gray-800">{depositsThisMonth} Transaksi</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold ${growthBg} ${growthColor} px-2 py-1 rounded`}>{growthText}</span>
+                </div>
+                 <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><CheckCircle size={18}/></div>
+                    <div>
+                      <p className="text-xs text-gray-500">Konsistensi Warga</p>
+                      <p className="font-bold text-gray-800">{consistencyRate}% Aktif</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-400">Min. 1x Transaksi</span>
                 </div>
               </div>
-              <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded">Dominan</span>
             </div>
-            <div className="flex justify-between items-center border-b pb-3 border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-lg text-green-600"><Calendar size={18}/></div>
-                <div>
-                  <p className="text-xs text-gray-500">Setoran Bulan Ini</p>
-                  <p className="font-bold text-gray-800">{monthlyDeposits} Transaksi</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold bg-green-50 text-green-600 px-2 py-1 rounded">+12% vs lalu</span>
-            </div>
-             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><CheckCircle size={18}/></div>
-                <div>
-                  <p className="text-xs text-gray-500">Konsistensi Warga</p>
-                  <p className="font-bold text-gray-800">85% Rutin</p>
-                </div>
-              </div>
-              <span className="text-[10px] text-gray-400">Dummy Data</span>
-            </div>
-          </div>
-        </div>
 
-        {/* SECTION 3: FINANCE & STOCK */}
-        <div className="bg-white p-5 rounded-2xl border shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Ekosistem Poin & Stok</h3>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-gray-50 p-3 rounded-xl border">
-              <p className="text-[10px] text-gray-500 mb-1">Poin Beredar</p>
-              <p className="text-lg font-bold text-blue-600">{circulating}</p>
+            <div className="bg-white p-5 rounded-2xl border shadow-sm">
+               <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Ekosistem Poin & Stok</h3>
+               <div className="grid grid-cols-2 gap-3 mb-4">
+                 <div className="bg-gray-50 p-3 rounded-xl border">
+                   <p className="text-[10px] text-gray-500 mb-1">Poin Beredar</p>
+                   <p className="text-lg font-bold text-blue-600">{circulating}</p>
+                 </div>
+                 <div className="bg-gray-50 p-3 rounded-xl border">
+                   <p className="text-[10px] text-gray-500 mb-1">Poin Ditukar</p>
+                   <p className="text-lg font-bold text-orange-600">{totalRedeemed}</p>
+                 </div>
+               </div>
+               <div className="space-y-3">
+                 <div className="flex justify-between text-sm">
+                   <span className="text-gray-500">Perputaran Stok</span>
+                   <span className="font-bold">{stockTurnover}x Restock Keluar</span>
+                 </div>
+                 <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                    <div className="bg-orange-400 h-full" style={{ width: `${Math.min(stockTurnover * 10, 100)}%` }}></div>
+                 </div>
+                 <div className="flex justify-between text-sm pt-2">
+                   <span className="text-gray-500">Kesehatan Stok</span>
+                   <span className={`font-bold ${stockHealth > 80 ? 'text-green-600' : 'text-red-500'}`}>{stockHealth}% Ready</span>
+                 </div>
+               </div>
             </div>
-            <div className="bg-gray-50 p-3 rounded-xl border">
-              <p className="text-[10px] text-gray-500 mb-1">Poin Ditukar</p>
-              <p className="text-lg font-bold text-orange-600">{totalRedeemed}</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Perputaran Stok</span>
-              <span className="font-bold">{stockTurnover}x Restock Keluar</span>
-            </div>
-            <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-               <div className="bg-orange-400 h-full w-[70%]"></div>
-            </div>
-            <div className="flex justify-between text-sm pt-2">
-              <span className="text-gray-500">Akurasi Data Stok</span>
-              <span className="font-bold text-green-600">99.2% (Valid)</span>
-            </div>
-             <p className="text-[10px] text-gray-400 italic">*Berdasarkan selisih stok fisik vs sistem</p>
-          </div>
-        </div>
+          </>
+        )}
 
-        {/* SECTION 4: PARTNERSHIP & GROWTH (INTERACTIVE) */}
-        <div className="bg-white p-5 rounded-2xl border shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border shadow-sm transition-all">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Mitra & Ekosistem</h3>
-            {partnerView && (
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">
+              {isEditing ? (editData.id ? 'Edit Mitra' : 'Tambah Mitra') : 'Mitra & Ekosistem'}
+            </h3>
+            {partnerView && !isEditing && (
               <button onClick={() => setPartnerView(null)} className="text-xs text-blue-600 flex items-center gap-1 font-bold">
                 <ChevronLeft size={14}/> Kembali
               </button>
+            )}
+            {isEditing && (
+              <button onClick={() => setIsEditing(false)} className="text-xs text-gray-500 font-bold">Batal</button>
             )}
           </div>
           
@@ -223,78 +348,106 @@ const AnalyticsDetailModal = ({ isOpen, onClose, transactions, users, products }
                  <div className="bg-purple-100 p-3 rounded-full text-purple-600"><Users size={24}/></div>
                  <div className="flex-1">
                    <p className="text-xs text-gray-500">Pertumbuhan User</p>
-                   <p className="font-bold text-lg text-gray-800">{totalUsers} Warga <span className="text-green-500 text-xs">(+{newUsersThisMonth} Baru)</span></p>
+                   <p className="font-bold text-lg text-gray-800">{totalUserCount} Warga <span className="text-green-500 text-xs">(+{newUsersThisMonth} Baru)</span></p>
                  </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button 
-                  onClick={() => setPartnerView('craftsman')}
-                  className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-green-50 hover:border-green-300 transition text-left group"
-                >
+                <button onClick={() => setPartnerView('craftsman')} className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-green-50 hover:border-green-300 transition text-left group">
                    <div className="flex items-center gap-2 mb-2">
                      <Hammer size={14} className="text-gray-500 group-hover:text-green-600"/>
                      <span className="text-[10px] font-bold uppercase text-gray-500 group-hover:text-green-700">Pengrajin Sampah</span>
                    </div>
-                   <p className="font-bold text-gray-800 text-sm">3 Mitra Aktif</p>
+                   <p className="font-bold text-gray-800 text-sm">{craftsmen.length} Mitra Aktif</p>
                    <p className="text-[10px] text-green-600 mt-1">Produk Bernilai Tambah</p>
-                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk detail</p>
+                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk kelola</p>
                 </button>
-                <button 
-                  onClick={() => setPartnerView('supplier')}
-                  className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition text-left group"
-                >
+                <button onClick={() => setPartnerView('supplier')} className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition text-left group">
                    <div className="flex items-center gap-2 mb-2">
                      <StoreIcon size={14} className="text-gray-500 group-hover:text-blue-600"/>
                      <span className="text-[10px] font-bold uppercase text-gray-500 group-hover:text-blue-700">Agen Grosir Pasar</span>
                    </div>
-                   <p className="font-bold text-gray-800 text-sm">3 Toko Mitra</p>
+                   <p className="font-bold text-gray-800 text-sm">{suppliers.length} Toko Mitra</p>
                    <p className="text-[10px] text-blue-600 mt-1">Support UMKM Lokal</p>
-                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk detail</p>
+                   <p className="text-[9px] text-gray-400 mt-2">Klik untuk kelola</p>
                 </button>
               </div>
             </>
+          ) : isEditing ? (
+            <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+               {renderForm()}
+               <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg">Simpan Data</button>
+            </div>
           ) : partnerView === 'craftsman' ? (
             <div className="space-y-3 animate-in fade-in zoom-in duration-200">
-               <div className="bg-green-100 p-3 rounded-xl mb-2 text-green-800 text-xs font-bold flex items-center gap-2">
-                 <Hammer size={16}/> Daftar Mitra Pengrajin (Upcycling)
+               <div className="flex justify-between items-center mb-2">
+                 <div className="bg-green-100 p-2 rounded-lg text-green-800 text-xs font-bold flex items-center gap-2">
+                   <Hammer size={16}/> Mitra Pengrajin (Upcycling)
+                 </div>
+                 <button onClick={handleAddClick} className="bg-green-600 text-white p-2 rounded-lg"><Plus size={16}/></button>
                </div>
-               {CRAFTSMEN_DATA.map((item, idx) => (
-                 <div key={idx} className="border p-3 rounded-xl bg-gray-50 flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-sm text-gray-800">{item.name}</p>
-                      <p className="text-xs text-gray-500">{item.loc}</p>
+               
+               {craftsmen.map((item) => (
+                 <div key={item.id} className="border p-3 rounded-xl bg-gray-50 flex flex-col gap-2 relative">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-sm text-gray-800">{item.name}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin size={10}/> {item.loc}</p>
+                      </div>
+                      <div className="bg-green-200 text-green-800 text-[10px] px-2 py-1 rounded font-bold">
+                        {item.product}
+                      </div>
                     </div>
-                    <div className="bg-green-200 text-green-800 text-[10px] px-2 py-1 rounded font-bold">
-                      {item.product}
+                    {item.mapsLink && (
+                       <a href={item.mapsLink} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 flex items-center gap-1 hover:underline">
+                         <ExternalLink size={10}/> Lihat di Maps
+                       </a>
+                    )}
+                    <div className="flex gap-2 justify-end mt-2 border-t pt-2">
+                       <button onClick={() => handleEditClick(item)} className="text-xs font-bold text-blue-600 flex items-center gap-1"><Edit size={12}/> Edit</button>
+                       <button onClick={() => handleDelete(item.id)} className="text-xs font-bold text-red-500 flex items-center gap-1"><Trash2 size={12}/> Hapus</button>
                     </div>
                  </div>
                ))}
+               {craftsmen.length === 0 && <p className="text-center text-xs text-gray-400 py-4">Belum ada data pengrajin.</p>}
             </div>
           ) : (
              <div className="space-y-3 animate-in fade-in zoom-in duration-200">
-               <div className="bg-blue-100 p-3 rounded-xl mb-2 text-blue-800 text-xs font-bold flex items-center gap-2">
-                 <StoreIcon size={16}/> Daftar Agen Grosir Pasar Tradisional
+               <div className="flex justify-between items-center mb-2">
+                 <div className="bg-blue-100 p-2 rounded-lg text-blue-800 text-xs font-bold flex items-center gap-2">
+                   <StoreIcon size={16}/> Agen Grosir Pasar Tradisional
+                 </div>
+                 <button onClick={handleAddClick} className="bg-blue-600 text-white p-2 rounded-lg"><Plus size={16}/></button>
                </div>
-               {SUPPLIER_DATA.map((item, idx) => (
-                 <div key={idx} className="border p-3 rounded-xl bg-gray-50 flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-sm text-gray-800">{item.name}</p>
-                      <p className="text-xs text-gray-500">{item.loc}</p>
+
+               {suppliers.map((item) => (
+                 <div key={item.id} className="border p-3 rounded-xl bg-gray-50 flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-bold text-sm text-gray-800">{item.name}</p>
+                        <p className="text-xs text-gray-500 font-medium">{item.supplyType}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-gray-600">{item.market}</p>
+                        <p className="text-[9px] text-gray-400">{item.block}</p>
+                      </div>
                     </div>
-                    <div className="bg-blue-200 text-blue-800 text-[10px] px-2 py-1 rounded font-bold max-w-[100px] text-right">
-                      {item.desc}
+                    <div className="flex gap-2 justify-end mt-2 border-t pt-2">
+                       <button onClick={() => handleEditClick(item)} className="text-xs font-bold text-blue-600 flex items-center gap-1"><Edit size={12}/> Edit</button>
+                       <button onClick={() => handleDelete(item.id)} className="text-xs font-bold text-red-500 flex items-center gap-1"><Trash2 size={12}/> Hapus</button>
                     </div>
                  </div>
                ))}
+               {suppliers.length === 0 && <p className="text-center text-xs text-gray-400 py-4">Belum ada data supplier.</p>}
             </div>
           )}
-
         </div>
         
-        <div className="text-center pb-8 opacity-50">
-          <p className="text-[10px] font-mono">System Report Generated Automatically</p>
-        </div>
+        {!isEditing && (
+          <div className="text-center pb-8 opacity-50">
+            <p className="text-[10px] font-mono">Report Generate by EcoLoop-Mart</p>
+          </div>
+        )}
 
       </div>
     </div>
@@ -480,7 +633,7 @@ const AdminInventoryManagement = ({ products, setProducts, showNotification }) =
   );
 };
 
-const AdminDashboard = ({ users, products, updateUserBalance, setTransactions, transactions, showNotification }) => {
+const AdminDashboard = ({ users, products, updateUserBalance, setTransactions, transactions, showNotification, craftsmen, setCraftsmen, suppliers, setSuppliers }) => {
   const [depositUser, setDepositUser] = useState('');
   const [depositWeight, setDepositWeight] = useState('');
   const [selectedWaste, setSelectedWaste] = useState(WASTE_TYPES[0]);
@@ -532,6 +685,10 @@ const AdminDashboard = ({ users, products, updateUserBalance, setTransactions, t
         transactions={transactions}
         users={users}
         products={products}
+        craftsmen={craftsmen}
+        setCraftsmen={setCraftsmen}
+        suppliers={suppliers}
+        setSuppliers={setSuppliers}
       />
 
       {/* 1. SIMPLE ANALYTICS DASHBOARD (SUMMARY) */}
@@ -618,6 +775,17 @@ export default function App() {
     const saved = localStorage.getItem('ecoLoopTransactions');
     return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
   });
+
+  // NEW STATE FOR PARTNERS
+  const [craftsmen, setCraftsmen] = useState(() => {
+    const saved = localStorage.getItem('ecoLoopCraftsmen');
+    return saved ? JSON.parse(saved) : INITIAL_CRAFTSMEN;
+  });
+  const [suppliers, setSuppliers] = useState(() => {
+    const saved = localStorage.getItem('ecoLoopSuppliers');
+    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
+  });
+
   const [cart, setCart] = useState([]);
   const [notification, setNotification] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -627,7 +795,9 @@ export default function App() {
     localStorage.setItem('ecoLoopUsers', JSON.stringify(users));
     localStorage.setItem('ecoLoopInventory', JSON.stringify(products));
     localStorage.setItem('ecoLoopTransactions', JSON.stringify(transactions));
-  }, [users, products, transactions]);
+    localStorage.setItem('ecoLoopCraftsmen', JSON.stringify(craftsmen));
+    localStorage.setItem('ecoLoopSuppliers', JSON.stringify(suppliers));
+  }, [users, products, transactions, craftsmen, suppliers]);
 
   // Sync currentUser if Admin updates their own profile
   useEffect(() => {
@@ -698,7 +868,6 @@ export default function App() {
         ),
         icon: <HelpCircle size={60} className="text-blue-500"/>
       },
-      // SLIDE BARU: BANTUAN AKUN
       {
         title: "Bantuan Akun",
         content: (
@@ -807,44 +976,92 @@ export default function App() {
         </div>
 
         <div className="w-full max-w-sm opacity-50 text-center">
-          <p className="text-[10px] text-gray-400">© 2025 EcoLoop Mart System. Ver 2.1</p>
+          <p className="text-[10px] text-gray-400">© 2025-2026 EcoLoop-Mart System. Ver 2.1</p>
         </div>
       </div>
     );
   };
 
-  const UserHomeTab = () => (
-    <div className="p-4 space-y-6 pb-24">
-      <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-        <Recycle className="absolute -right-8 -bottom-8 opacity-10" size={160} />
-        <p className="text-green-100 text-xs font-bold uppercase tracking-wider mb-1">Saldo EcoPoin</p>
-        <h2 className="text-5xl font-bold mb-4">{currentUser.balance} <span className="text-lg font-normal opacity-70">pts</span></h2>
-        <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl inline-block text-sm border border-white/20">
-          ≈ Rp {(currentUser.balance * 150).toLocaleString('id-ID')}
+  const UserHomeTab = () => {
+    // --- LEADERBOARD LOGIC ---
+    const sortedUsers = [...users]
+      .filter(u => u.role === 'user' && u.status === 'active')
+      .sort((a, b) => b.balance - a.balance);
+    
+    const top5 = sortedUsers.slice(0, 5);
+    const myRank = sortedUsers.findIndex(u => u.id === currentUser.id) + 1;
+    const isMeInTop5 = myRank <= 5;
+
+    return (
+      <div className="p-4 space-y-6 pb-24">
+        <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <Recycle className="absolute -right-8 -bottom-8 opacity-10" size={160} />
+          <p className="text-green-100 text-xs font-bold uppercase tracking-wider mb-1">Saldo EcoPoin</p>
+          <h2 className="text-5xl font-bold mb-4">{currentUser.balance} <span className="text-lg font-normal opacity-70">pts</span></h2>
+          <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl inline-block text-sm border border-white/20">
+            ≈ Rp {(currentUser.balance * 150).toLocaleString('id-ID')}
+          </div>
+        </div>
+
+        {currentUser.balance === 0 && (
+          <div className="bg-orange-50 p-6 rounded-3xl border border-orange-200 text-center space-y-3">
+            <div className="bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-orange-600"><Recycle size={24}/></div>
+            <p className="font-bold text-orange-800">Saldo kamu masih kosong!</p>
+            <p className="text-xs text-orange-700 leading-relaxed">Yuk, bawa sampah plastik atau kardusmu ke petugas Admin biar dapet poin dan bisa borong sembako!</p>
+            <button onClick={() => setShowQRModal(true)} className="bg-orange-600 text-white text-xs px-4 py-2 rounded-lg font-bold shadow-md">Tunjukkin QR Member</button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <button onClick={() => setShowQRModal(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center gap-3 active:scale-95 transition">
+            <QrCode size={32} className="text-gray-700"/>
+            <span className="text-xs font-bold text-gray-600">ID Member</span>
+          </button>
+          <button onClick={() => setActiveTab('market')} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center gap-3 active:scale-95 transition">
+            <Store size={32} className="text-green-600"/>
+            <span className="text-xs font-bold text-gray-600">Tukar Poin</span>
+          </button>
+        </div>
+
+        {/* LEADERBOARD SECTION */}
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
+          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm"><Trophy size={16} className="text-yellow-500 fill-yellow-500"/> Top Pahlawan Lingkungan</h3>
+          <div className="space-y-3">
+            {top5.map((u, idx) => (
+              <div key={u.id} className={`flex items-center justify-between text-sm ${u.id === currentUser.id ? 'bg-green-50 p-2 rounded-lg border border-green-100' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-6 h-6 flex items-center justify-center rounded-full font-bold text-[10px] ${idx === 0 ? 'bg-yellow-100 text-yellow-600' : idx === 1 ? 'bg-gray-100 text-gray-600' : idx === 2 ? 'bg-orange-100 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                    {idx + 1}
+                  </div>
+                  <span className={`font-medium ${u.id === currentUser.id ? 'text-green-700 font-bold' : 'text-gray-600'}`}>
+                    @{u.username} {u.id === currentUser.id && '(Saya)'}
+                  </span>
+                </div>
+                <span className="font-bold text-gray-800">{u.balance} pts</span>
+              </div>
+            ))}
+            
+            {/* If user is not in top 5, show blur effect and their rank */}
+            {!isMeInTop5 && (
+              <>
+                <div className="h-4 bg-gradient-to-b from-transparent to-white -mt-2"></div>
+                <div className="flex items-center justify-center text-xs text-gray-400 py-1">...</div>
+                <div className="flex items-center justify-between text-sm bg-green-50 p-2 rounded-lg border border-green-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 flex items-center justify-center rounded-full font-bold text-[10px] bg-green-200 text-green-700">
+                      {myRank}
+                    </div>
+                    <span className="font-bold text-green-700">@{currentUser.username} (Saya)</span>
+                  </div>
+                  <span className="font-bold text-gray-800">{currentUser.balance} pts</span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-
-      {currentUser.balance === 0 && (
-        <div className="bg-orange-50 p-6 rounded-3xl border border-orange-200 text-center space-y-3">
-          <div className="bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-orange-600"><Recycle size={24}/></div>
-          <p className="font-bold text-orange-800">Saldo kamu masih kosong!</p>
-          <p className="text-xs text-orange-700 leading-relaxed">Yuk, bawa sampah plastik atau kardusmu ke petugas Admin biar dapet poin dan bisa borong sembako!</p>
-          <button onClick={() => setShowQRModal(true)} className="bg-orange-600 text-white text-xs px-4 py-2 rounded-lg font-bold shadow-md">Tunjukkin QR Member</button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => setShowQRModal(true)} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center gap-3 active:scale-95 transition">
-          <QrCode size={32} className="text-gray-700"/>
-          <span className="text-xs font-bold text-gray-600">ID Member</span>
-        </button>
-        <button onClick={() => setActiveTab('market')} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center gap-3 active:scale-95 transition">
-          <Store size={32} className="text-green-600"/>
-          <span className="text-xs font-bold text-gray-600">Tukar Poin</span>
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const MarketplaceTab = () => {
     const totalPoints = cart.reduce((a, c) => a + (c.price * c.qty), 0);
@@ -1003,7 +1220,7 @@ export default function App() {
       <div className="flex-1 overflow-y-auto">
         {currentUser.role === 'admin' ? (
           <>
-            {activeTab === 'admin-dashboard' && <AdminDashboard users={users} products={products} updateUserBalance={updateUserBalance} setTransactions={setTransactions} transactions={transactions} showNotification={showNotification} />}
+            {activeTab === 'admin-dashboard' && <AdminDashboard users={users} products={products} updateUserBalance={updateUserBalance} setTransactions={setTransactions} transactions={transactions} showNotification={showNotification} craftsmen={craftsmen} setCraftsmen={setCraftsmen} suppliers={suppliers} setSuppliers={setSuppliers} />}
             {activeTab === 'admin-users' && <AdminUserManagement users={users} setUsers={setUsers} showNotification={showNotification} />}
             {activeTab === 'admin-inventory' && <AdminInventoryManagement products={products} setProducts={setProducts} showNotification={showNotification} />}
           </>
